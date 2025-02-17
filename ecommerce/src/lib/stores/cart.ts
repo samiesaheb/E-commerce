@@ -14,10 +14,11 @@ interface CartItem {
 
 // Load cart from localStorage if available
 const loadCart = (): CartItem[] => {
-    if (!browser) return [];
+    if (typeof window === 'undefined') return [];
     const storedCart = localStorage.getItem(CART_STORAGE_KEY);
     return storedCart ? JSON.parse(storedCart) : [];
 };
+
 
 export const cart = writable<CartItem[]>(loadCart());
 
@@ -37,7 +38,7 @@ export const addToCart = (product: CartItem, quantity: number = 1): void => {
         } else {
             items.push({ ...product, quantity });
         }
-        return [...items];
+        return structuredClone(items);
     });
 };
 
@@ -48,10 +49,11 @@ export const removeFromCart = (id: string): void => {
 export const updateCartQuantity = (id: string, quantity: number): void => {
     cart.update((items) => {
         const item = items.find((i) => i.id === id);
-        if (item) item.quantity = quantity;
-        return [...items];
+        if (item) item.quantity = Math.max(1, quantity); // Prevent zero or negative values
+        return structuredClone(items);
     });
 };
+
 
 export const clearCart = (): void => {
     cart.set([]);

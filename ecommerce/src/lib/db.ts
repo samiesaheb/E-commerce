@@ -41,6 +41,21 @@ const orderSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
+// ✅ Cart Schema
+const cartSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    items: [
+        {
+            id: { type: String, required: true },
+            name: { type: String, required: true },
+            price: { type: Number, required: true },
+            quantity: { type: Number, required: true },
+            image: { type: String }
+        }
+    ]
+});
+
 // ✅ Prevent "Cannot overwrite model" errors
 export const UserModel = mongoose.models.User || mongoose.model("User", userSchema);
 export const OrderModel = mongoose.models.Order || mongoose.model("Order", orderSchema);
+export const CartModel = mongoose.models.Cart || mongoose.model("Cart", cartSchema);

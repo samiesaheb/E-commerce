@@ -8,13 +8,19 @@
   let paymentMethod = "credit-card";
   let error = "";
   let success = false;
+  let loading = false;
+
+  // Calculate total price dynamically
+  $: totalAmount = get(cart).reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const placeOrder = async () => {
     error = "";
     success = false;
-    
+    loading = true;
+
     if (!name || !address) {
       error = "Please fill in all required fields.";
+      loading = false;
       return;
     }
 
@@ -33,19 +39,23 @@
 
     if (!response.ok) {
       error = "Failed to place order. Please try again.";
+      loading = false;
       return;
     }
 
     clearCart();
     success = true;
+    loading = false;
   };
 </script>
 
 <h1>Checkout</h1>
 
 {#if success}
-  <p>✅ Your order has been placed successfully!</p>
-  <a href="/order/history">View Order History</a>
+  <div class="success-message">
+    ✅ Your order has been placed successfully!
+    <a href="/order/history">View Order History</a>
+  </div>
 {:else}
   <form on:submit|preventDefault={placeOrder}>
     <label>Name:</label>
@@ -67,17 +77,20 @@
         <li>{item.name} x {item.quantity} - ${item.price * item.quantity}</li>
       {/each}
     </ul>
+    <p><strong>Total:</strong> ${totalAmount.toFixed(2)}</p>
 
     {#if error}
       <p class="error">{error}</p>
     {/if}
 
-    <button type="submit">Place Order</button>
+    <button type="submit" disabled={loading}>
+      {loading ? "Placing Order..." : "Place Order"}
+    </button>
   </form>
 {/if}
 
 <style>
-  .error {
-    color: red;
-  }
+  .error { color: red; }
+  .success-message { background: #d4edda; padding: 10px; border-radius: 5px; }
+  button[disabled] { background: gray; cursor: not-allowed; }
 </style>
