@@ -6,6 +6,7 @@
     fetchUserSession,
   } from "$lib/stores/auth";
   import { onMount } from "svelte";
+  import { cart } from "$lib/stores/cart";
 
   let searchQuery = "";
 
@@ -65,6 +66,10 @@
     </div>
 
     <div class="right-link">
+      <a href="/cart" class="cart-link">
+        <span class="cart-icon">🛒</span>
+        <span class="cart-badge">{$cart.reduce((total, item) => total + item.quantity, 0)}</span>
+      </a>
       {#if $isAuthenticated}
         <a href="/profile">Profile</a>
         <button class="logout-btn" on:click={logout}>Logout</button>
@@ -274,5 +279,31 @@
   .content {
     width: 100vw; /* ✅ Ensures they span the full screen width */
     max-width: 100vw; /* ✅ Prevents overflow */
+  }
+
+
+  .cart-link {
+    position: relative;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: #333;
+    font-weight: bold;
+  }
+  .cart-icon {
+    font-size: 1.5rem;
+  }
+  .cart-badge {
+    position: absolute;
+    top: 0px;
+    right: -15px;
+    background: red;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 0.2rem 0.5rem;
+    border-radius: 50%;
+    min-width: 20px;
+    text-align: center;
   }
 </style>
