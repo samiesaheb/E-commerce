@@ -1,27 +1,39 @@
 import jwt from "jsonwebtoken";
+import type { JwtPayload } from "jsonwebtoken";
 import dotenv from "dotenv";
-import type { RequestEvent } from "@sveltejs/kit";
+import { UserModel } from "$lib/db";
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || "";
+const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 
-/**
- * Verify and decode the JWT from the Authorization header
- */
-export function verifyToken(event: RequestEvent) {
-    const authHeader = event.request.headers.get("Authorization");
-
+// ✅ Function to verify JWT token
+export async function verifyToken(authHeader: string | null, requireAdmin = false) {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return { error: "No authentication token found.", status: 401 };
+        throw new Error("No authentication token found.");
     }
 
     const token = authHeader.split(" ")[1];
 
+    let decoded: JwtPayload;
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        return { decoded, status: 200 };
-    } catch (error) {
-        return { error: "Invalid or expired token.", status: 403 };
+        const payload = jwt.verify(token, JWT_SECRET);
+        if (typeof payload === "string") throw new Error("Invalid token format.");
+        decoded = payload as JwtPayload;
+    } catch {
+        throw new Error("Invalid or expired token.");
     }
+
+    if (!decoded?.id) throw new Error("Invalid token payload.");
+
+    // ✅ Fetch user from database
+    const user = await UserModel.findById(decoded.id);
+    if (!user) throw new Error("User not found.");
+
+    // ✅ Ensure admin access if required
+    if (requireAdmin && !user.isAdmin) {
+        throw new Error("Admin access required.");
+    }
+
+    return user; // Return authenticated user
 }

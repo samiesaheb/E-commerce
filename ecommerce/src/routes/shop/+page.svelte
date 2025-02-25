@@ -9,6 +9,7 @@
     description: string;
     image?: string;
     price: number;
+    stock?: number;
   };
 
   let userLoggedIn = false;
@@ -17,7 +18,6 @@
   let products: Product[] = [];
   let filteredProducts: Product[] = [];
 
-  // Auto-subscribe to the cart store
   $: cartItems = $cart;
 
   onMount(async () => {
@@ -27,14 +27,13 @@
     try {
       const response = await fetch("/api/products");
       if (!response.ok) {
-        console.error("Failed to fetch products:", response.status);
-        return;
+        throw new Error(`Failed to fetch products: ${response.status}`);
       }
       const data = await response.json();
       products = [...data];
       filteredProducts = [...products];
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error("❌ Error fetching products:", error);
     }
 
     const urlParams = new URLSearchParams($page.url.search);
@@ -44,39 +43,56 @@
 
   function filterProducts() {
     filteredProducts = products.filter(product =>
-      product.name.toLowerCase().includes(searchQuery.toLowerCase())
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
+    sortProducts(); // Re-apply sorting after filtering
   }
 
   function sortProducts() {
     filteredProducts = [...filteredProducts].sort((a, b) => {
       if (sortOption === "price-asc") return a.price - b.price;
       if (sortOption === "price-desc") return b.price - a.price;
+      if (sortOption === "name-desc") return b.name.localeCompare(a.name);
       return a.name.localeCompare(b.name);
     });
   }
 
   function handleAddToCart(product: Product) {
-    if (!userLoggedIn) {
-      alert("You must be logged in to add items to the cart.");
-      return;
-    }
-
-    const existingItem = $cart.find(item => item.id === product.id);
-    if (existingItem) {
-      updateCartQuantity(product.id, existingItem.quantity + 1); // Increment if already in cart
-    } else {
-      addToCart({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.image
-      });
-    }
+  if (!userLoggedIn) {
+    alert("Please log in to add items to your cart.");
+    return;
+  }
+  if (product.stock && product.stock <= 0) {
+    alert("This item is currently out of stock.");
+    return;
   }
 
+  const existingItem = $cart.find(item => item.id === product.id);
+  if (existingItem) {
+    updateCartQuantity(product.id, existingItem.quantity + 1);
+  } else {
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      stock: product.stock
+    } as any); // Temporary type assertion - we'll fix this properly below
+  }
+}
+
   function incrementQuantity(product: Product) {
-    handleAddToCart(product);
+    const existingItem = $cart.find(item => item.id === product.id);
+    if (existingItem && product.stock && existingItem.quantity >= product.stock) {
+      alert("Cannot add more than available stock.");
+      return;
+    }
+    if (existingItem) {
+      updateCartQuantity(product.id, existingItem.quantity + 1);
+    } else {
+      handleAddToCart(product);
+    }
   }
 
   function decrementQuantity(product: Product) {
@@ -89,93 +105,248 @@
   }
 </script>
 
-<h1>Shop</h1>
+<div class="shop-container">
+  <header class="shop-header">
+    <h1>Our Store</h1>
+    <div class="search-bar">
+      <input
+        type="text"
+        placeholder="Search products..."
+        bind:value={searchQuery}
+        on:input={filterProducts}
+      />
+      <select bind:value={sortOption} on:change={sortProducts}>
+        <option value="name-asc">Name: A-Z</option>
+        <option value="name-desc">Name: Z-A</option>
+        <option value="price-asc">Price: Low to High</option>
+        <option value="price-desc">Price: High to Low</option>
+      </select>
+    </div>
+  </header>
 
-<input
-  type="text"
-  placeholder="Search products..."
-  bind:value={searchQuery}
-  on:input={filterProducts}
-/>
+  {#if searchQuery}
+    <p class="search-results">Showing results for "{searchQuery}"</p>
+  {/if}
 
-<select bind:value={sortOption} on:change={sortProducts}>
-  <option value="name-asc">Name: A-Z</option>
-  <option value="name-desc">Name: Z-A</option>
-  <option value="price-asc">Price: Low to High</option>
-  <option value="price-desc">Price: High to Low</option>
-</select>
-
-{#if searchQuery}
-  <p>Results for "{searchQuery}"</p>
-{/if}
-
-{#if filteredProducts.length > 0}
-  <ul class="product-grid">
-    {#each filteredProducts as product}
-      <li class="product-card">
-        <h2>
-          <a href={"/shop/" + product.name.toLowerCase().replace(/\s+/g, "-")}>
-            {product.name}
-          </a>
-        </h2>
-        <p>{product.description}</p>
-        <p>Price: ${product.price.toFixed(2)}</p>
-        {#if userLoggedIn}
-          <div class="cart-controls">
-            {#if cartItems.some(item => item.id === product.id)}
-              <div class="quantity-controls">
-                <button on:click={() => decrementQuantity(product)}>-</button>
-                <span>{cartItems.find(item => item.id === product.id)?.quantity || 0}</span>
-                <button on:click={() => incrementQuantity(product)}>+</button>
-              </div>
+  {#if filteredProducts.length > 0}
+    <div class="product-grid">
+      {#each filteredProducts as product}
+        <div class="product-card">
+          <div class="product-image">
+            {#if product.image}
+              <img src={product.image} alt={product.name} />
             {:else}
-              <button on:click={() => handleAddToCart(product)}>Add to Cart</button>
+              <div class="placeholder-image">No Image</div>
             {/if}
           </div>
-        {/if}
-      </li>
-    {/each}
-  </ul>
-{:else}
-  <p>No products found.</p>
-{/if}
+          <div class="product-details">
+            <h2>
+              <a href={`/shop/${product.name.toLowerCase().replace(/\s+/g, "-")}`}>
+                {product.name}
+              </a>
+            </h2>
+            <p class="description">{product.description}</p>
+            <div class="product-footer">
+              <span class="price">${product.price.toFixed(2)}</span>
+              {#if product.stock !== undefined}
+                <span class="stock">
+                  {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
+                </span>
+              {/if}
+            </div>
+            {#if userLoggedIn}
+              <div class="cart-controls">
+                {#if cartItems.some(item => item.id === product.id)}
+                  <div class="quantity-controls">
+                    <button class="quantity-btn" on:click={() => decrementQuantity(product)}>-</button>
+                    <span class="quantity">
+                      {cartItems.find(item => item.id === product.id)?.quantity || 0}
+                    </span>
+                    <button class="quantity-btn" on:click={() => incrementQuantity(product)}>+</button>
+                  </div>
+                {:else}
+                  <button 
+                    class="add-to-cart" 
+                    on:click={() => handleAddToCart(product)}
+                    disabled={product.stock === 0}
+                  >
+                    Add to Cart
+                  </button>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <p class="no-products">No products found matching your search.</p>
+  {/if}
+</div>
 
 <style>
-  .product-grid {
-    list-style: none;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  .shop-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .search-bar {
+    display: flex;
     gap: 1rem;
-    padding: 0;
+    align-items: center;
+  }
+
+  input, select {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  input {
+    width: 300px;
+  }
+
+  .search-results {
+    margin-bottom: 1.5rem;
+    color: #666;
+  }
+
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 2rem;
   }
 
   .product-card {
-    border: 1px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: transform 0.2s;
+  }
+
+  .product-card:hover {
+    transform: translateY(-5px);
+  }
+
+  .product-image {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+  }
+
+  .product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .placeholder-image {
+    width: 100%;
+    height: 100%;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+  }
+
+  .product-details {
     padding: 1rem;
-    border-radius: 4px;
+  }
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+  }
+
+  h2 a {
+    text-decoration: none;
+    color: #333;
+  }
+
+  h2 a:hover {
+    color: #007bff;
+  }
+
+  .description {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    height: 3rem;
+    overflow: hidden;
+  }
+
+  .product-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .price {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #2c3e50;
+  }
+
+  .stock {
+    font-size: 0.9rem;
+    color: #666;
   }
 
   .cart-controls {
-    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
   }
 
   .quantity-controls {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-top: 0.5rem;
   }
 
-  button {
-    padding: 0.5rem 1rem;
-    background-color: #007bff;
-    color: white;
-    border: none;
+  .quantity-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: #f0f0f0;
+    color: #333;
+  }
+
+  .quantity {
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .add-to-cart {
+    padding: 0.75rem 1.5rem;
+    background: #28a745;
     border-radius: 4px;
-    cursor: pointer;
+    font-weight: bold;
   }
 
-  button:hover {
-    background-color: #0056b3;
+  .add-to-cart:hover {
+    background: #218838;
+  }
+
+  .add-to-cart:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .no-products {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
   }
 </style>

@@ -1,89 +1,109 @@
 import type { RequestHandler } from "@sveltejs/kit";
-import jwt from "jsonwebtoken";
-import type { JwtPayload } from "jsonwebtoken";
-import dotenv from "dotenv";
-import { connectToDatabase, OrderModel } from "$lib/db";
+import { connectToDatabase, OrderModel, CartModel } from "$lib/db";
+import { verifyToken } from "$lib/utils/auth";
 
-dotenv.config();
+// ✅ Define CartItem Type
+type CartItem = {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    image?: string;
+};
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
-
+// ✅ GET: Retrieve user's orders (sorted by recent orders)
 export const GET: RequestHandler = async ({ request }) => {
     try {
         await connectToDatabase();
+        const user = await verifyToken(request.headers.get("Authorization"));
 
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return new Response(JSON.stringify({ error: "No authentication token found." }), { status: 401 });
+        if (!user?.id) {
+            return new Response(JSON.stringify({ error: "Unauthorized access." }), { status: 401 });
         }
 
-        const token = authHeader.split(" ")[1];
-        let decoded: JwtPayload;
-        try {
-            const payload = jwt.verify(token, JWT_SECRET);
-            if (typeof payload === "string") {
-                return new Response(JSON.stringify({ error: "Invalid token format." }), { status: 401 });
-            }
-            decoded = payload as JwtPayload;
-        } catch (error: unknown) {
-            return new Response(JSON.stringify({ error: "Invalid or expired token." }), { status: 401 });
-        }
-
-        if (!decoded || !decoded.id) {
-            return new Response(JSON.stringify({ error: "Invalid token payload." }), { status: 401 });
-        }
-
-        const userId = decoded.id;
-        const orders = await OrderModel.find({ userId }).sort({ createdAt: -1 });
+        const orders = await OrderModel.find({ userId: user.id }).sort({ createdAt: -1 });
 
         return new Response(JSON.stringify(orders), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
-    } catch (error: unknown) {
-        console.error("Orders API Error:", error);
-        const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
-        return new Response(JSON.stringify({ error: "Internal Server Error", details: errorMessage }), { status: 500 });
+    } catch (error) {
+        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), { status: 500 });
     }
 };
 
+// ✅ POST: Place an order
+export const POST: RequestHandler = async ({ request }) => {
+    try {
+        await connectToDatabase();
+        const user = await verifyToken(request.headers.get("Authorization"));
+
+        if (!user?.id) {
+            return new Response(JSON.stringify({ error: "Unauthorized access." }), { status: 401 });
+        }
+
+        const { items, totalAmount, paymentMethod } = await request.json();
+
+        // ✅ Ensure items is a valid array
+        if (!Array.isArray(items) || items.length === 0) {
+            return new Response(JSON.stringify({ error: "Invalid cart items." }), { status: 400 });
+        }
+
+        // ✅ Process products in order
+        const products = items.map((item: CartItem) => ({
+            productId: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image || ""
+        }));
+
+        // ✅ Save the order to MongoDB
+        const newOrder = new OrderModel({
+            userId: user.id,
+            products,
+            totalAmount,
+            paymentMethod,
+            status: "pending",
+            createdAt: new Date()
+        });
+
+        const savedOrder = await newOrder.save();
+
+        // ✅ Clear user's cart **only after successful order placement**
+        await CartModel.findOneAndDelete({ userId: user.id });
+
+        return new Response(JSON.stringify({ success: true, orderId: savedOrder._id }), { status: 201 });
+    } catch (error) {
+        console.error("Order Submission Error:", error);
+        return new Response(JSON.stringify({ error: "Failed to place order" }), { status: 500 });
+    }
+};
+
+// ✅ DELETE: Remove an order by `orderId`
 export const DELETE: RequestHandler = async ({ request }) => {
     try {
         await connectToDatabase();
+        const user = await verifyToken(request.headers.get("Authorization"));
 
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return new Response(JSON.stringify({ error: "No authentication token found." }), { status: 401 });
-        }
-
-        const token = authHeader.split(" ")[1];
-        let decoded: JwtPayload;
-        try {
-            const payload = jwt.verify(token, JWT_SECRET);
-            if (typeof payload === "string") {
-                return new Response(JSON.stringify({ error: "Invalid token format." }), { status: 401 });
-            }
-            decoded = payload as JwtPayload;
-        } catch (error: unknown) {
-            return new Response(JSON.stringify({ error: "Invalid or expired token." }), { status: 401 });
-        }
-
-        if (!decoded || !decoded.id) {
-            return new Response(JSON.stringify({ error: "Invalid token payload." }), { status: 401 });
+        if (!user?.id) {
+            return new Response(JSON.stringify({ error: "Unauthorized access." }), { status: 401 });
         }
 
         const { orderId } = await request.json();
+
         if (!orderId) {
             return new Response(JSON.stringify({ error: "Missing order ID." }), { status: 400 });
         }
 
-        const result = await OrderModel.deleteOne({ _id: orderId, userId: decoded.id });
+        const result = await OrderModel.deleteOne({ _id: orderId, userId: user.id });
+
         if (result.deletedCount === 0) {
-            return new Response(JSON.stringify({ error: "Order not found or not authorized." }), { status: 404 });
+            return new Response(JSON.stringify({ error: "Order not found or unauthorized." }), { status: 404 });
         }
 
         return new Response(JSON.stringify({ success: true }), { status: 200 });
-    } catch (error: unknown) {
+    } catch (error) {
         console.error("Orders API Error:", error);
         return new Response(JSON.stringify({ error: "Internal Server Error" }), { status: 500 });
     }

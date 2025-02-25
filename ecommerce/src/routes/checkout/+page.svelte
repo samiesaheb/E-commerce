@@ -1,96 +1,124 @@
 <script lang="ts">
   import { cart, clearCart } from "$lib/stores/cart";
+  import { goto } from "$app/navigation";
   import { get } from "svelte/store";
-  import { onMount } from "svelte";
 
-  let name = "";
-  let address = "";
-  let paymentMethod = "credit-card";
-  let error = "";
-  let success = false;
-  let loading = false;
+  let paymentMethod = "credit_card"; // Default payment option
+  let orderPlaced = false;
+  let errorMessage = "";
 
-  // Calculate total price dynamically
-  $: totalAmount = get(cart).reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // ✅ Compute total cost
+  $: totalAmount = $cart.reduce((total, item) => total + item.price * item.quantity, 0);
 
-  const placeOrder = async () => {
-    error = "";
-    success = false;
-    loading = true;
-
-    if (!name || !address) {
-      error = "Please fill in all required fields.";
-      loading = false;
+  async function placeOrder() {
+    const token = localStorage.getItem("jwt_token");
+    if (!token) {
+      errorMessage = "You must be logged in to place an order.";
       return;
     }
 
     const orderData = {
-      name,
-      address,
-      paymentMethod,
       items: get(cart),
+      totalAmount,
+      paymentMethod
     };
 
-    const response = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(orderData),
-    });
+    try {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(orderData),
+      });
 
-    if (!response.ok) {
-      error = "Failed to place order. Please try again.";
-      loading = false;
-      return;
+      if (!response.ok) {
+        throw new Error("Failed to place order. Please try again.");
+      }
+
+      const result = await response.json();
+      orderPlaced = true;
+      clearCart(); // ✅ Clear cart after successful checkout
+      goto(`/order/${result.orderId}`); // ✅ Redirect to order confirmation page
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : "An error occurred.";
     }
-
-    clearCart();
-    success = true;
-    loading = false;
-  };
+  }
 </script>
 
 <h1>Checkout</h1>
 
-{#if success}
-  <div class="success-message">
-    ✅ Your order has been placed successfully!
-    <a href="/order/history">View Order History</a>
-  </div>
+{#if orderPlaced}
+  <p>Your order has been placed successfully! Redirecting...</p>
 {:else}
-  <form on:submit|preventDefault={placeOrder}>
-    <label>Name:</label>
-    <input type="text" bind:value={name} required />
+  <div class="checkout-summary">
+    <h2>Order Summary</h2>
 
-    <label>Address:</label>
-    <textarea bind:value={address} required></textarea>
+    {#if $cart.length > 0}
+      <ul>
+        {#each $cart as item}
+          <li>
+            <span>{item.name} (x{item.quantity})</span>
+            <span>${(item.price * item.quantity).toFixed(2)}</span>
+          </li>
+        {/each}
+      </ul>
+      <p><strong>Total:</strong> ${totalAmount.toFixed(2)}</p>
 
-    <label>Payment Method:</label>
-    <select bind:value={paymentMethod}>
-      <option value="credit-card">Credit Card</option>
-      <option value="paypal">PayPal</option>
-      <option value="cash">Cash on Delivery</option>
-    </select>
+      <label for="payment-method">Payment Method:</label>
+      <select bind:value={paymentMethod}>
+        <option value="credit_card">Credit Card</option>
+        <option value="paypal">PayPal</option>
+        <option value="bank_transfer">Bank Transfer</option>
+      </select>
 
-    <h3>Order Summary</h3>
-    <ul>
-      {#each $cart as item}
-        <li>{item.name} x {item.quantity} - ${item.price * item.quantity}</li>
-      {/each}
-    </ul>
-    <p><strong>Total:</strong> ${totalAmount.toFixed(2)}</p>
+      {#if errorMessage}
+        <p class="error">{errorMessage}</p>
+      {/if}
 
-    {#if error}
-      <p class="error">{error}</p>
+      <button on:click={placeOrder} class="place-order-btn">Place Order</button>
+    {:else}
+      <p>Your cart is empty.</p>
     {/if}
-
-    <button type="submit" disabled={loading}>
-      {loading ? "Placing Order..." : "Place Order"}
-    </button>
-  </form>
+  </div>
 {/if}
 
 <style>
-  .error { color: red; }
-  .success-message { background: #d4edda; padding: 10px; border-radius: 5px; }
-  button[disabled] { background: gray; cursor: not-allowed; }
+  .checkout-summary {
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  ul {
+    list-style-type: none;
+    padding: 0;
+  }
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  .place-order-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 0.75rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .place-order-btn:hover {
+    background-color: #0056b3;
+  }
+
+  .error {
+    color: red;
+    margin-top: 0.5rem;
+  }
 </style>
