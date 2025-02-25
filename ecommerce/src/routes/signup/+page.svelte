@@ -10,6 +10,7 @@
     async function signup() {
         if (password !== confirmPassword) {
             errorMessage = "Passwords do not match!";
+            successMessage = "";
             return;
         }
 
@@ -21,12 +22,10 @@
             });
 
             const data = await response.json();
-            console.log("Signup Response:", data);
 
             if (response.ok) {
                 successMessage = "Signup successful! Redirecting to login...";
                 errorMessage = "";
-
                 setTimeout(() => {
                     goto("/login");
                 }, 2000);
@@ -42,84 +41,178 @@
     }
 </script>
 
+<div class="signup-page">
+    <div class="signup-container">
+        <div class="header">
+            <img src="/SH4.jpg" alt="Sky High International Logo" class="logo" />
+            <h1>Create Account</h1>
+            <p>Join us and start shopping today!</p>
+        </div>
+
+        <form on:submit|preventDefault={signup}>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    bind:value={email} 
+                    placeholder="Enter your email" 
+                    required 
+                />
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    bind:value={password} 
+                    placeholder="Enter your password" 
+                    required 
+                />
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">Confirm Password</label>
+                <input 
+                    type="password" 
+                    id="confirm-password" 
+                    bind:value={confirmPassword} 
+                    placeholder="Confirm your password" 
+                    required 
+                />
+            </div>
+            <button type="submit" class="signup-btn">Sign Up</button>
+            {#if errorMessage}
+                <p class="error">{errorMessage}</p>
+            {/if}
+            {#if successMessage}
+                <p class="success">{successMessage}</p>
+            {/if}
+        </form>
+
+        <div class="footer-links">
+            <p>Already have an account? <a href="/login" class="login-link">Sign In</a></p>
+        </div>
+    </div>
+</div>
+
 <style>
-    .signup-container {
-        max-width: 400px;
-        margin: 50px auto;
-        padding: 20px;
-        border-radius: 8px;
-        background: #fff;
-        color: black;
-        text-align: center;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    .signup-page {
         display: flex;
-        flex-direction: column;
-        justify-content: center; /* Centers the form inside the container */
-        align-items: center; /* Ensures all elements inside are centered */
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 2rem;
     }
 
-    form {
-        display: flex;
-        flex-direction: column;
-        align-items: center; /* Center inputs & button horizontally */
+    .signup-container {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
         width: 100%;
+        max-width: 450px;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .logo {
+        height: 60px;
+        width: auto;
+        margin-bottom: 1rem;
+    }
+
+    h1 {
+        font-size: 2rem;
+        color: #2c3e50;
+        margin: 0;
+    }
+
+    .header p {
+        color: #666;
+        font-size: 1rem;
+        margin-top: 0.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+        width: 100%;
+    }
+
+    label {
+        display: block;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 0.5rem;
+        text-align: left;
     }
 
     input {
         width: 100%;
-        max-width: 300px; /* Prevents inputs from stretching too wide */
-        padding: 10px;
-        margin: 10px 0;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-        text-align: center; /* Center text inside input */
+        padding: 0.9rem;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 1rem;
+        color: #333;
+        transition: border-color 0.3s;
     }
 
-    button {
+    input:focus {
+        border-color: #EF0107;
+        outline: none;
+    }
+
+    .signup-btn {
         width: 100%;
-        max-width: 300px; /* Matches input width */
-        padding: 10px;
-        background: #007bff;
+        padding: 1rem;
+        background: #EF0107;
         color: white;
         border: none;
-        border-radius: 5px;
+        border-radius: 6px;
+        font-size: 1.1rem;
+        font-weight: 600;
         cursor: pointer;
+        transition: background 0.3s;
     }
 
-    button:hover {
-        background: #0056b3;
+    .signup-btn:hover {
+        background: #EF0107;
     }
 
     .error {
-        color: red;
-        font-weight: bold;
-        margin-top: 10px;
+        color: #ff4444;
+        font-size: 0.9rem;
+        margin-top: 1rem;
+        text-align: center;
     }
 
     .success {
-        color: green;
-        font-weight: bold;
-        margin-top: 10px;
+        color: #28a745;
+        font-size: 0.9rem;
+        margin-top: 1rem;
+        text-align: center;
+    }
+
+    .footer-links {
+        margin-top: 1.5rem;
+        text-align: center;
+    }
+
+    .footer-links p {
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .login-link {
+        color: #ff6b6b;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .login-link:hover {
+        text-decoration: underline;
     }
 </style>
-
-<div class="signup-container">
-    <h2>Sign Up</h2>
-
-    <form on:submit|preventDefault={signup}>
-        <input type="email" bind:value={email} placeholder="Email" required />
-        <input type="password" bind:value={password} placeholder="Password" required />
-        <input type="password" bind:value={confirmPassword} placeholder="Confirm Password" required />
-
-        <button type="submit">Sign Up</button>
-
-        {#if errorMessage}
-            <p class="error">{errorMessage}</p>
-        {/if}
-        {#if successMessage}
-            <p class="success">{successMessage}</p>
-        {/if}
-    </form>
-
-    <p>Already have an account? <a href="/login">Login here</a></p>
-</div>

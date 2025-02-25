@@ -12,18 +12,18 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
-                credentials: "include" // ✅ Ensure cookies are sent
+                credentials: "include"
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                setAuthToken("session"); // ✅ Mark user as logged in
-                setUser({ email }); // ✅ Store user details
+                setAuthToken("session");
+                setUser({ email });
                 errorMessage = "";
-                goto("/profile"); // ✅ Redirect to profile after login
+                goto("/profile");
             } else {
-                errorMessage = data.error || "An error occurred. Try again.";
+                errorMessage = data.error || "An error occurred. Please try again.";
             }
         } catch (error) {
             console.error("❌ Login Error:", error);
@@ -32,111 +32,171 @@
     }
 </script>
 
-  
-  <style>
-    .login-container {
-        max-width: 400px;
-        margin: 50px auto;
-        padding: 20px;
-        border-radius: 8px;
-        background: #fff;
-        color: black;
-        text-align: center;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+<div class="login-page">
+    <div class="login-container">
+        <div class="header">
+            <img src="/SH4.jpg" alt="Sky High International Logo" class="logo" />
+            <h1>Sign In</h1>
+            <p>Welcome back! Please enter your credentials.</p>
+        </div>
+
+        <form on:submit|preventDefault={login}>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    bind:value={email} 
+                    placeholder="Enter your email" 
+                    required 
+                />
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    bind:value={password} 
+                    placeholder="Enter your password" 
+                    required 
+                />
+            </div>
+            <button type="submit" class="login-btn">Sign In</button>
+            {#if errorMessage}
+                <p class="error">{errorMessage}</p>
+            {/if}
+        </form>
+
+        <div class="footer-links">
+            <a href="/forgot-password" class="forgot-password">Forgot Password?</a>
+            <p>Don't have an account? <a href="/signup" class="signup-link">Sign Up</a></p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-page {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 2rem;
     }
+
+    .login-container {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+        width: 100%;
+        max-width: 450px;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .logo {
+        height: 60px;
+        width: auto;
+        margin-bottom: 1rem;
+    }
+
+    h1 {
+        font-size: 2rem;
+        color: #2c3e50;
+        margin: 0;
+    }
+
+    .header p {
+        color: #666;
+        font-size: 1rem;
+        margin-top: 0.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+        width: 100%;
+    }
+
+    label {
+        display: block;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 0.5rem;
+        text-align: left;
+    }
+
     input {
         width: 100%;
-        padding: 10px;
-        margin: 10px 0;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-    }
-    button {
-        width: 100%;
-        padding: 10px;
-        background: #007bff;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-    button:hover {
-        background: #0056b3;
-    }
-    .error {
-        color: red;
-        font-weight: bold;
+        padding: 0.9rem;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 1rem;
+        color: #333;
+        transition: border-color 0.3s;
     }
 
-    .login-container {
-        max-width: 400px;
-        margin: 50px auto;
-        padding: 20px;
-        border-radius: 8px;
-        background: #fff;
-        color: black;
+    input:focus {
+        border-color: #EF0107;
+        outline: none;
+    }
+
+    .login-btn {
+        width: 100%;
+        padding: 1rem;
+        background: #EF0107;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+    .login-btn:hover {
+        background: #EF0107;
+    }
+
+    .error {
+        color: #ff4444;
+        font-size: 0.9rem;
+        margin-top: 1rem;
         text-align: center;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-        display: flex;
-        flex-direction: column;
-        justify-content: center; /* Centers the form inside the container */
-        align-items: center; /* Ensures all elements inside are centered */
     }
 
-    form {
-        display: flex;
-        flex-direction: column;
-        align-items: center; /* Center inputs & button horizontally */
-        width: 100%;
+    .footer-links {
+        margin-top: 1.5rem;
+        text-align: center;
     }
 
-    input {
-        width: 100%; /* Take full width of the form */
-        max-width: 300px; /* Prevents inputs from stretching too wide */
-        padding: 10px;
-        margin: 10px 0;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-        text-align: center; /* Center text inside input */
+    .forgot-password {
+        color: #EF0107;
+        font-size: 0.9rem;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.5rem;
     }
 
-    button {
-        width: 100%;
-        max-width: 300px; /* Matches input width */
-        padding: 10px;
-        background: #007bff;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
+    .forgot-password:hover {
+        text-decoration: underline;
     }
 
-    button:hover {
-        background: #0056b3;
+    .footer-links p {
+        color: #666;
+        font-size: 0.9rem;
     }
 
-    .error {
-        color: red;
-        font-weight: bold;
-        margin-top: 10px;
+    .signup-link {
+        color: #EF0107;
+        text-decoration: none;
+        font-weight: 500;
     }
 
-  </style>
-  
-  <div class="login-container">
-    <h2>Login</h2>
-  
-    <form on:submit|preventDefault={login}>
-        <input type="email" bind:value={email} placeholder="Email" required />
-        <input type="password" bind:value={password} placeholder="Password" required />
-  
-        <button type="submit">Login</button>
-  
-        {#if errorMessage}
-            <p class="error">{errorMessage}</p>
-        {/if}
-    </form>
-  
-    <p>Don't have an account? <a href="/signup">Sign up here</a></p>
-  </div>
-  
+    .signup-link:hover {
+        text-decoration: underline;
+    }
+</style>

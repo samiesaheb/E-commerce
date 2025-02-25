@@ -164,7 +164,7 @@
   .shop-now-btn {
       display: inline-block;
       padding: 1rem 2rem;
-      background: #ff6b6b;
+      background: #EF0107;
       color: white;
       text-decoration: none;
       border-radius: 5px;
@@ -211,7 +211,7 @@
   }
 
   .price {
-      color: #ff6b6b;
+      color: #EF0107;
       font-weight: bold;
       margin: 0.5rem 0;
   }
@@ -222,7 +222,7 @@
   }
 
   .view-product:hover {
-      color: #ff6b6b;
+      color: #EF0107;
   }
 
   /* About Section */
@@ -265,7 +265,7 @@
   }
 
   .category-link {
-      color: #ff6b6b;
+      color: #EF0107;
       text-decoration: none;
       font-weight: bold;
   }

@@ -250,7 +250,7 @@
   }
 
   .submit-btn {
-      background: #ff6b6b;
+      background: #EF0107;
       color: white;
       padding: 0.75rem 1.5rem;
       border: none;
@@ -261,7 +261,7 @@
   }
 
   .submit-btn:hover {
-      background: #ff8787;
+      background: #EF0107;
   }
 
   .success-message {

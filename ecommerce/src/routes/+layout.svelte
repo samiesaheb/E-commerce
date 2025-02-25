@@ -10,15 +10,64 @@
 
   let searchQuery = "";
   let isMenuOpen = false; // For mobile menu toggle
+  let searchResults: { id: string; name: string }[] = []; // Store search suggestions
+  let isDropdownOpen = false; // Control dropdown visibility
 
   // Fetch session on page load
   onMount(fetchUserSession);
 
+  // Fetch product suggestions as user types
+  async function fetchSearchSuggestions(query: string) {
+    if (!query.trim()) {
+      searchResults = [];
+      isDropdownOpen = false;
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/products?search=${encodeURIComponent(query)}`);
+      if (response.ok) {
+        const products: { id: string; name: string }[] = await response.json();
+        // Ensure only products matching the query are included (client-side fallback)
+        searchResults = products
+          .filter(product => product.name.toLowerCase().includes(query.toLowerCase()))
+          .slice(0, 5); // Limit to 5 suggestions
+        isDropdownOpen = searchResults.length > 0;
+      } else {
+        console.error('Failed to fetch products:', response.statusText);
+        searchResults = [];
+        isDropdownOpen = false;
+      }
+    } catch (error) {
+      console.error('Error fetching search suggestions:', error);
+      searchResults = [];
+      isDropdownOpen = false;
+    }
+  }
+
+  // Handle search submission
   async function handleSearch() {
     const query = searchQuery.trim();
     if (!query) return;
     searchQuery = "";
+    searchResults = [];
+    isDropdownOpen = false;
     await goto(`/shop?search=${encodeURIComponent(query)}`);
+  }
+
+  // Handle selecting a suggestion
+  function selectSuggestion(productName: string) {
+    searchQuery = productName;
+    searchResults = [];
+    isDropdownOpen = false;
+    goto(`/shop/${productName.toLowerCase().replace(/\s+/g, "-")}`);
+  }
+
+  // Debounce search input to avoid excessive API calls
+  let debounceTimer: NodeJS.Timeout;
+  function handleInput() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => fetchSearchSuggestions(searchQuery), 300);
   }
 
   function logout() {
@@ -29,7 +78,17 @@
   function toggleMenu() {
     isMenuOpen = !isMenuOpen;
   }
+
+  // Close dropdown when clicking outside
+  function handleClickOutside(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.search-bar')) {
+      isDropdownOpen = false;
+    }
+  }
 </script>
+
+<svelte:window on:click={handleClickOutside} />
 
 <div class="layout">
   <!-- Navbar -->
@@ -65,6 +124,8 @@
             class="search-input"
             placeholder="Search products..."
             bind:value={searchQuery}
+            on:input={handleInput}
+            autocomplete="off"
           />
           <button class="search-btn" type="submit" aria-label="Search">
             <svg
@@ -83,6 +144,19 @@
             </svg>
           </button>
         </form>
+        {#if isDropdownOpen && searchResults.length > 0}
+          <div class="search-dropdown">
+            {#each searchResults as product}
+              <a
+                href={`/shop/${product.name.toLowerCase().replace(/\s+/g, "-")}`}
+                class="search-result"
+                on:click|preventDefault={() => selectSuggestion(product.name)}
+              >
+                {product.name}
+              </a>
+            {/each}
+          </div>
+        {/if}
       </div>
 
       <!-- User Actions & Cart -->
@@ -203,7 +277,7 @@
   }
 
   .nav-item:hover {
-    color: #ff6b6b;
+    color: #EF0107;
   }
 
   /* Dropdown */
@@ -244,7 +318,7 @@
 
   .dropdown-content a:hover, .dropdown-content button:hover {
     background: #f5f5f5;
-    color: #ff6b6b;
+    color: #EF0107;
   }
 
   .dropdown:hover .dropdown-content {
@@ -256,6 +330,7 @@
     flex: 1;
     max-width: 400px;
     margin: 0 2rem;
+    position: relative;
   }
 
   .search-form {
@@ -277,7 +352,7 @@
   }
 
   .search-btn {
-    background: #ff6b6b;
+    background: #EF0107;
     color: white;
     border: none;
     padding: 0.75rem 1.5rem;
@@ -292,6 +367,33 @@
   .search-icon {
     width: 1.2em;
     height: 1.2em;
+  }
+
+  .search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+  }
+
+  .search-result {
+    display: block;
+    padding: 0.75rem 1rem;
+    color: #333;
+    text-decoration: none;
+    transition: background 0.3s;
+  }
+
+  .search-result:hover {
+    background: #f5f5f5;
+    color: #EF0107;
   }
 
   /* User Actions */
@@ -317,7 +419,7 @@
     position: absolute;
     top: -8px;
     right: -12px;
-    background: #ff6b6b;
+    background: #EF0107;
     color: white;
     font-size: 0.8rem;
     padding: 0.3rem 0.6rem;
@@ -327,7 +429,7 @@
   }
 
   .signup {
-    background: #ff6b6b;
+    background: #EF0107;
     color: white;
     padding: 0.5rem 1.5rem;
     border-radius: 25px;
@@ -335,7 +437,7 @@
   }
 
   .signup:hover {
-    background: #ff8787;
+    background: #EF0107;
     color: white;
   }
 
@@ -377,7 +479,7 @@
   }
 
   footer a {
-    color: #ff6b6b;
+    color: #EF0107;
     text-decoration: none;
     font-weight: 500;
   }
@@ -395,6 +497,10 @@
     .search-bar {
       max-width: 300px;
       margin: 0 1rem;
+    }
+
+    .search-dropdown {
+      max-width: 300px;
     }
   }
 
@@ -435,6 +541,11 @@
       width: 100%;
       max-width: none;
       margin: 1rem 0;
+    }
+
+    .search-dropdown {
+      width: 100%;
+      max-width: none;
     }
 
     .content {

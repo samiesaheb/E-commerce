@@ -4,46 +4,45 @@
     import { authToken, user, logoutUser } from "$lib/stores/auth";
     import { get } from "svelte/store";
 
-    // ✅ Define expected user structure
+    // Define expected user structure
     type UserData = {
         email?: string;
         id?: string;
         profilePicture?: string;
+        firstName?: string;
+        lastName?: string;
     };
 
-    let userData: UserData = get(user) || {}; 
+    let userData: UserData = get(user) || {};
     let errorMessage = "";
     let loading = true;
-    let profilePicture = "/default-avatar.png"; // ✅ Default profile picture
+    let profilePicture = "/default-avatar.png"; // Default profile picture
 
     async function fetchUserProfile() {
-    try {
-        const response = await fetch("/api/users/profile", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            credentials: "include" // ✅ Ensures cookies (authToken) are sent
-        });
+        try {
+            const response = await fetch("/api/users/profile", {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "include"
+            });
 
-        const data = await response.json();
-        if (response.ok) {
-            user.set(data);
-            userData = data;
-            profilePicture = data.profilePicture || "/default-avatar.png";
-        } else {
-            errorMessage = data.error || "Failed to load profile.";
+            const data = await response.json();
+            if (response.ok) {
+                user.set(data);
+                userData = data;
+                profilePicture = data.profilePicture || "/default-avatar.png";
+            } else {
+                errorMessage = data.error || "Failed to load profile.";
+            }
+        } catch (error) {
+            console.error("Profile Fetch Error:", error);
+            errorMessage = "An error occurred while fetching profile data.";
+        } finally {
+            loading = false;
         }
-    } catch (error) {
-        console.error("Profile Fetch Error:", error);
-        errorMessage = "An error occurred while fetching profile data.";
-    } finally {
-        loading = false;
     }
-}
-
-
-
 
     async function uploadProfilePicture(event: Event) {
         const fileInput = event.target as HTMLInputElement;
@@ -52,7 +51,7 @@
         const formData = new FormData();
         formData.append("profilePicture", fileInput.files[0]);
 
-        let token: string | null = get(authToken); // ✅ Get token
+        let token: string | null = get(authToken);
 
         try {
             const response = await fetch("/api/users/profile-picture", {
@@ -67,7 +66,8 @@
             if (response.ok) {
                 profilePicture = data.profilePicture;
                 userData = { ...userData, profilePicture: data.profilePicture };
-                user.set(userData); 
+                user.set(userData);
+                errorMessage = "";
             } else {
                 errorMessage = data.error || "Failed to upload picture.";
             }
@@ -85,62 +85,257 @@
     onMount(fetchUserProfile);
 </script>
 
+<div class="profile-page">
+    <div class="profile-container">
+        <div class="header">
+            <h1>My Account</h1>
+            <p>Manage your profile and orders</p>
+        </div>
+
+        {#if loading}
+            <div class="loading">Loading your profile...</div>
+        {:else if errorMessage}
+            <p class="error">{errorMessage}</p>
+            <button class="retry-btn" on:click={fetchUserProfile}>Retry</button>
+        {:else if userData?.email}
+            <div class="profile-content">
+                <!-- Profile Picture Section -->
+                <div class="profile-pic-section">
+                    <img class="profile-pic" src={profilePicture} alt="Profile Picture" />
+                    <label for="profile-upload" class="upload-btn">Change Picture</label>
+                    <input 
+                        id="profile-upload" 
+                        type="file" 
+                        accept="image/*" 
+                        on:change={uploadProfilePicture} 
+                        hidden 
+                    />
+                </div>
+
+                <!-- Account Details -->
+                <div class="account-details">
+                    <h2>Account Information</h2>
+                    <div class="detail-item">
+                        <span class="label">Email:</span>
+                        <span class="value">{userData.email}</span>
+                    </div>
+                    {#if userData.firstName || userData.lastName}
+                        <div class="detail-item">
+                            <span class="label">Name:</span>
+                            <span class="value">{userData.firstName || ''} {userData.lastName || ''}</span>
+                        </div>
+                    {/if}
+                    <button class="edit-btn">Edit Profile</button>
+                </div>
+
+                <!-- Order History Placeholder -->
+                <div class="order-history">
+                    <h2>Recent Orders</h2>
+                    <p class="placeholder">No recent orders. Start shopping now!</p>
+                    <a href="/shop" class="shop-link">Browse Products</a>
+                </div>
+
+                <!-- Logout -->
+                <button class="logout-btn" on:click={logout}>Sign Out</button>
+            </div>
+        {:else}
+            <p class="no-data">No profile information found.</p>
+        {/if}
+    </div>
+</div>
+
 <style>
-    .profile-container {
-        max-width: 400px;
-        margin: 50px auto;
-        padding: 20px;
-        border-radius: 8px;
-        background: #fff;
-        color: black;
-        text-align: center;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    .profile-page {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 2rem;
     }
+
+    .profile-container {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+        width: 100%;
+        max-width: 800px;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    h1 {
+        font-size: 2.5rem;
+        color: #2c3e50;
+        margin: 0;
+    }
+
+    .header p {
+        color: #666;
+        font-size: 1.1rem;
+        margin-top: 0.5rem;
+    }
+
+    .loading {
+        text-align: center;
+        color: #666;
+        font-size: 1.2rem;
+        padding: 2rem;
+    }
+
+    .error {
+        color: #ff4444;
+        font-size: 1rem;
+        text-align: center;
+        margin: 1rem 0;
+    }
+
+    .retry-btn {
+        display: block;
+        margin: 0 auto;
+        padding: 0.75rem 1.5rem;
+        background: #EF0107;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+    .retry-btn:hover {
+        background: #ff8787;
+    }
+
+    .profile-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .profile-pic-section {
+        text-align: center;
+    }
+
     .profile-pic {
-        width: 100px;
-        height: 100px;
+        width: 120px;
+        height: 120px;
         border-radius: 50%;
         object-fit: cover;
-        margin-bottom: 10px;
+        border: 3px solid #ddd;
+        margin-bottom: 1rem;
     }
+
     .upload-btn {
-        display: block;
-        margin: 10px auto;
-    }
-    .logout-btn {
-        background: red;
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: #EF0107;
         color: white;
-        padding: 10px;
-        border: none;
+        border-radius: 6px;
         cursor: pointer;
-        margin-top: 10px;
-        border-radius: 5px;
+        font-size: 0.9rem;
+        transition: background 0.3s;
     }
+
+    .upload-btn:hover {
+        background: #ff8787;
+    }
+
+    .account-details {
+        background: #f9f9f9;
+        padding: 1.5rem;
+        border-radius: 8px;
+    }
+
+    .account-details h2 {
+        font-size: 1.5rem;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+
+    .detail-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+
+    .label {
+        font-weight: 500;
+        color: #666;
+    }
+
+    .value {
+        color: #333;
+    }
+
+    .edit-btn {
+        margin-top: 1rem;
+        padding: 0.75rem 1.5rem;
+        background: #EF0107;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+    .edit-btn:hover {
+        background: #EF0107;
+    }
+
+    .order-history {
+        background: #f9f9f9;
+        padding: 1.5rem;
+        border-radius: 8px;
+    }
+
+    .order-history h2 {
+        font-size: 1.5rem;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+
+    .placeholder {
+        color: #666;
+        font-style: italic;
+    }
+
+    .shop-link {
+        display: inline-block;
+        margin-top: 1rem;
+        color: #EF0107;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .shop-link:hover {
+        text-decoration: underline;
+    }
+
+    .logout-btn {
+        width: 100%;
+        padding: 1rem;
+        background: ##EF0107;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
     .logout-btn:hover {
-        background: darkred;
+        background: #cc3333;
     }
-    .error {    
-        color: red;
-        font-weight: bold;
+
+    .no-data {
+        text-align: center;
+        color: #666;
+        font-size: 1.2rem;
+        padding: 2rem;
     }
 </style>
-
-<div class="profile-container">
-    <h2>User Profile</h2>
-
-    {#if loading}
-        <p>Loading profile...</p>
-    {:else if errorMessage}
-        <p class="error">{errorMessage}</p>
-    {:else if userData?.email}
-        <img class="profile-pic" src={profilePicture} alt="Profile Picture" />
-
-        <p><strong>Email:</strong> {userData.email}</p>
-
-        <input class="upload-btn" type="file" accept="image/*" on:change={uploadProfilePicture} />
-
-        <button class="logout-btn" on:click={logout}>Logout</button>
-    {:else}
-        <p>No profile information found.</p>
-    {/if}
-</div>
