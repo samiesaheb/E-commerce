@@ -28,7 +28,6 @@
       const response = await fetch(`/api/products?search=${encodeURIComponent(query)}`);
       if (response.ok) {
         const products: { id: string; name: string }[] = await response.json();
-        // Ensure only products matching the query are included (client-side fallback)
         searchResults = products
           .filter(product => product.name.toLowerCase().includes(query.toLowerCase()))
           .slice(0, 5); // Limit to 5 suggestions
@@ -101,9 +100,8 @@
 
       <!-- Main Navigation Links -->
       <div class="nav-links" class:open={isMenuOpen}>
-        <a href="/shop" class="nav-item">Shop</a>
         <div class="dropdown">
-          <button class="nav-item dropbtn">Categories</button>
+          <a href="/shop" class="nav-item dropbtn">Shop</a>
           <div class="dropdown-content">
             <a href="/shop?category=skin-care">Skin Care</a>
             <a href="/shop?category=body-care">Body Care</a>
