@@ -16,13 +16,16 @@
 
   export let data: { products: { _id: string; name: string; description: string; image?: string; price: number; stock?: number; category?: string }[] };
   let userLoggedIn = false;
-  let searchQuery = $page.url.searchParams.get("search") || "";
-  let category = $page.url.searchParams.get("category") || "";
-  let sortOption = $page.url.searchParams.get("sort") || "name-asc";
+  let searchQuery = "";
+  let category = "";
+  let sortOption = "name-asc";
+  let minPrice = "";
+  let maxPrice = "";
   let filteredProducts: Product[] = [];
-  let allProducts: Product[] = []; // Store all fetched products for client-side filtering
+  let allProducts: Product[] = [];
   let errorMessage = "";
   let loading = true;
+  let suggestions: Product[] = [];
   let debounceTimer: NodeJS.Timeout;
 
   $: cartItems = $cart;
@@ -38,8 +41,8 @@
         stock: p.stock,
         category: p.category
       }));
-      filterProducts(); // Apply client-side filtering
-      errorMessage = filteredProducts.length === 0 ? "No products found." : "";
+      filterProducts();
+      errorMessage = filteredProducts.length === 0 && !loading ? "No products match your filters." : "";
     } else {
       allProducts = [];
       filteredProducts = [];
@@ -53,12 +56,35 @@
     const token = localStorage.getItem("jwt_token");
     userLoggedIn = !!token;
 
+    // Reset filters to ensure initial load shows all products
     searchQuery = $page.url.searchParams.get("search") || "";
     category = $page.url.searchParams.get("category") || "";
     sortOption = $page.url.searchParams.get("sort") || "name-asc";
+    minPrice = $page.url.searchParams.get("minPrice") || "";
+    maxPrice = $page.url.searchParams.get("maxPrice") || "";
+    await fetchProducts(); // Fetch products on mount to ensure data
   });
 
-  // Client-side filtering
+  async function fetchProducts() {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("search", searchQuery);
+    if (category) params.set("category", category);
+    if (sortOption) params.set("sort", sortOption);
+    if (minPrice) params.set("minPrice", minPrice);
+    if (maxPrice) params.set("maxPrice", maxPrice);
+
+    try {
+      const response = await fetch(`/api/products?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to fetch products");
+      const products = await response.json();
+      data.products = products; // Update reactive data
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      errorMessage = "Failed to fetch products.";
+      data.products = []; // Ensure reactive update
+    }
+  }
+
   function filterProducts() {
     filteredProducts = allProducts.filter(product => {
       const matchesSearch = searchQuery
@@ -66,10 +92,12 @@
           product.description.toLowerCase().includes(searchQuery.toLowerCase())
         : true;
       const matchesCategory = category ? product.category === category : true;
-      return matchesSearch && matchesCategory;
+      const matchesPrice = 
+        (!minPrice || product.price >= parseFloat(minPrice)) &&
+        (!maxPrice || product.price <= parseFloat(maxPrice));
+      return matchesSearch && matchesCategory && matchesPrice;
     });
 
-    // Apply sorting
     filteredProducts.sort((a, b) => {
       switch (sortOption) {
         case "name-asc":
@@ -86,41 +114,52 @@
     });
   }
 
-  // Debounced server fetch
-  async function fetchProducts() {
-    const params = new URLSearchParams();
-    if (searchQuery) params.set("search", searchQuery);
-    if (category) params.set("category", category);
-    params.set("sort", sortOption);
-
-    try {
-      const response = await fetch(`/api/products?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch products");
-      const products = await response.json();
-      data.products = products; // Update data to trigger reactive block
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      errorMessage = "Failed to fetch products.";
+  async function fetchSuggestions() {
+    const response = await fetch(`/api/products?search=${encodeURIComponent(searchQuery)}&limit=5`);
+    if (response.ok) {
+      suggestions = await response.json();
+      suggestions = suggestions.map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        description: p.description,
+        image: p.image,
+        price: p.price,
+        stock: p.stock,
+        category: p.category
+      }));
+    } else {
+      suggestions = [];
     }
   }
 
-  // Debounce search input and fetch
   function handleSearchInput() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      fetchProducts();
-    }, 500); // 500ms delay for server fetch
-    filterProducts(); // Immediate client-side filtering
+      updateQuery();
+    }, 500);
+    filterProducts();
+    fetchSuggestions();
   }
 
-  // Handle Enter key to navigate
+  function selectSuggestion(suggestion: Product) {
+    searchQuery = suggestion.name;
+    suggestions = [];
+    updateQuery();
+  }
+
+  function updateQuery() {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("search", searchQuery);
+    if (category) params.set("category", category);
+    if (sortOption) params.set("sort", sortOption);
+    if (minPrice) params.set("minPrice", minPrice);
+    if (maxPrice) params.set("maxPrice", maxPrice);
+    goto(`/shop?${params.toString()}`, { replaceState: true });
+  }
+
   function handleSearchSubmit(event: KeyboardEvent) {
     if (event.key === "Enter") {
-      const params = new URLSearchParams();
-      if (searchQuery) params.set("search", searchQuery);
-      if (category) params.set("category", category);
-      params.set("sort", sortOption);
-      goto(`/shop?${params.toString()}`, { replaceState: true });
+      updateQuery();
     }
   }
 
@@ -180,18 +219,27 @@
   <div class="filters">
     <div class="filter-group">
       <label for="search">Search</label>
-      <input
-        id="search"
-        type="text"
-        placeholder="Search products..."
-        bind:value={searchQuery}
-        on:input={handleSearchInput}
-        on:keydown={handleSearchSubmit}
-      />
+      <div class="search-container">
+        <input
+          id="search"
+          type="text"
+          placeholder="Search products..."
+          bind:value={searchQuery}
+          on:input={handleSearchInput}
+          on:keydown={handleSearchSubmit}
+        />
+        {#if suggestions.length > 0}
+          <ul class="suggestions">
+            {#each suggestions as suggestion}
+              <li on:click={() => selectSuggestion(suggestion)}>{suggestion.name}</li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
     </div>
     <div class="filter-group">
       <label for="category">Category</label>
-      <select id="category" bind:value={category} on:change={fetchProducts}>
+      <select id="category" bind:value={category} on:change={updateQuery}>
         <option value="">All Categories</option>
         <option value="skin-care">Skin Care</option>
         <option value="body-care">Body Care</option>
@@ -202,30 +250,42 @@
     </div>
     <div class="filter-group">
       <label for="sort">Sort By</label>
-      <select id="sort" bind:value={sortOption} on:change={fetchProducts}>
+      <select id="sort" bind:value={sortOption} on:change={updateQuery}>
         <option value="name-asc">Name (A-Z)</option>
         <option value="name-desc">Name (Z-A)</option>
         <option value="price-asc">Price (Low to High)</option>
         <option value="price-desc">Price (High to Low)</option>
       </select>
     </div>
+    <div class="filter-group">
+      <label for="minPrice">Min Price</label>
+      <input
+        id="minPrice"
+        type="number"
+        placeholder="Min Price"
+        bind:value={minPrice}
+        on:change={updateQuery}
+      />
+    </div>
+    <div class="filter-group">
+      <label for="maxPrice">Max Price</label>
+      <input
+        id="maxPrice"
+        type="number"
+        placeholder="Max Price"
+        bind:value={maxPrice}
+        on:change={updateQuery}
+      />
+    </div>
   </div>
 
   {#if loading}
     <p class="loading">Loading products...</p>
   {:else}
-    {#if searchQuery || category}
-      <p class="search-results">
-        Showing results for 
-        {searchQuery ? `"${searchQuery}"` : ""}
-        {searchQuery && category ? " in " : ""}
-        {category ? category.replace("-", " ") : ""}
-      </p>
-    {/if}
-
     {#if errorMessage}
       <p class="error">{errorMessage}</p>
-    {:else if filteredProducts.length > 0}
+    {/if}
+    {#if filteredProducts.length > 0}
       <div class="product-grid">
         {#each filteredProducts as product}
           <div class="product-card">
@@ -276,14 +336,13 @@
           </div>
         {/each}
       </div>
-    {:else}
+    {:else if !errorMessage}
       <p class="no-products">No products found.</p>
     {/if}
   {/if}
 </div>
 
 <style>
-  /* Unchanged styles from previous version */
   .shop-page {
     max-width: 1200px;
     margin: 2rem auto;
@@ -331,6 +390,35 @@
     font-size: 1rem;
     color: #333;
     width: 200px;
+  }
+
+  .search-container {
+    position: relative;
+  }
+
+  .suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 200px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    z-index: 10;
+  }
+
+  .suggestions li {
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+
+  .suggestions li:hover {
+    background: #f5f5f5;
   }
 
   .search-results {

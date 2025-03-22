@@ -4,7 +4,6 @@
     import { authToken, user, logoutUser } from "$lib/stores/auth";
     import { get } from "svelte/store";
 
-    // Define expected user structure
     type UserData = {
         email?: string;
         id?: string;
@@ -16,16 +15,24 @@
     let userData: UserData = get(user) || {};
     let errorMessage = "";
     let loading = true;
-    let profilePicture = "/default-avatar.png"; // Default profile picture
+    let profilePicture = "/default-avatar.png";
 
     async function fetchUserProfile() {
         try {
+            const token = get(authToken);
+            console.log("Fetching profile with token:", token);
+            if (!token) {
+                errorMessage = "No token available. Please log in.";
+                goto("/login");
+                return;
+            }
+
             const response = await fetch("/api/users/profile", {
                 method: "GET",
                 headers: {
-                    "Content-Type": "application/json"
-                },
-                credentials: "include"
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                }
             });
 
             const data = await response.json();
@@ -33,8 +40,14 @@
                 user.set(data);
                 userData = data;
                 profilePicture = data.profilePicture || "/default-avatar.png";
+                console.log("Profile fetched successfully:", data);
             } else {
                 errorMessage = data.error || "Failed to load profile.";
+                console.error("Profile fetch failed:", response.status, data);
+                if (response.status === 401) {
+                    errorMessage = "Session expired. Please log in again.";
+                    goto("/login");
+                }
             }
         } catch (error) {
             console.error("Profile Fetch Error:", error);
@@ -48,10 +61,17 @@
         const fileInput = event.target as HTMLInputElement;
         if (!fileInput.files || fileInput.files.length === 0) return;
 
+        let token = get(authToken);
+        if (!token) {
+            errorMessage = "You must be logged in to upload a picture.";
+            goto("/login");
+            return;
+        }
+
+        console.log("Uploading with token:", token);
+
         const formData = new FormData();
         formData.append("profilePicture", fileInput.files[0]);
-
-        let token: string | null = get(authToken);
 
         try {
             const response = await fetch("/api/users/profile-picture", {
@@ -63,17 +83,25 @@
             });
 
             const data = await response.json();
+            console.log("Upload response:", data, "Status:", response.status);
+
             if (response.ok) {
                 profilePicture = data.profilePicture;
                 userData = { ...userData, profilePicture: data.profilePicture };
                 user.set(userData);
                 errorMessage = "";
+                console.log("Profile picture uploaded successfully:", data.profilePicture);
             } else {
                 errorMessage = data.error || "Failed to upload picture.";
+                console.error("Upload failed:", response.status, data);
+                if (response.status === 401) {
+                    errorMessage = "Your session has expired. Please log in again to continue.";
+                    // Stay on page, let user retry or log out manually
+                }
             }
         } catch (error) {
             console.error("Profile Picture Upload Error:", error);
-            errorMessage = "An error occurred while uploading.";
+            errorMessage = "An error occurred while uploading. Please try again.";
         }
     }
 
@@ -318,7 +346,7 @@
     .logout-btn {
         width: 100%;
         padding: 1rem;
-        background: ##EF0107;
+        background: #EF0107;
         color: white;
         border: none;
         border-radius: 6px;

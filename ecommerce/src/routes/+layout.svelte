@@ -12,9 +12,29 @@
   let isMenuOpen = false; // For mobile menu toggle
   let searchResults: { id: string; name: string }[] = []; // Store search suggestions
   let isDropdownOpen = false; // Control dropdown visibility
+  let lastScrollY = 0; // Track last scroll position
+  let isHeaderVisible = true; // Control header visibility
 
   // Fetch session on page load
-  onMount(fetchUserSession);
+  onMount(() => {
+    fetchUserSession();
+
+    // Add scroll event listener
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY && currentScrollY > 80) {
+        // Scrolling down and past 80px
+        isHeaderVisible = false;
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up
+        isHeaderVisible = true;
+      }
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll); // Cleanup
+  });
 
   // Fetch product suggestions as user types
   async function fetchSearchSuggestions(query: string) {
@@ -91,7 +111,7 @@
 
 <div class="layout">
   <!-- Navbar -->
-  <nav class="navbar">
+  <nav class="navbar" class:hide={!isHeaderVisible}>
     <div class="nav-container">
       <!-- Logo -->
       <a href="/" class="logo">
@@ -234,6 +254,11 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     z-index: 1000;
     padding: 1rem 2rem;
+    transition: transform 0.3s ease; /* Smooth slide effect */
+  }
+
+  .navbar.hide {
+    transform: translateY(-100%); /* Slide up out of view */
   }
 
   .nav-container {
@@ -336,7 +361,7 @@
     align-items: center;
     width: 100%;
     border: 1px solid #ddd;
-    border-radius: 25px;
+    border-radius: 0; /* Rectangular search bar */
     overflow: hidden;
   }
 
@@ -356,6 +381,7 @@
     padding: 0.75rem 1.5rem;
     cursor: pointer;
     transition: background 0.3s;
+    border-radius: 0;
   }
 
   .search-btn:hover {
@@ -460,7 +486,7 @@
 
   /* Content */
   .content {
-    margin-top: 80px;
+    margin-top: 80px; /* Match navbar height */
     width: 100vw;
     overflow-x: hidden;
     flex: 1;

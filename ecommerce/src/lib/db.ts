@@ -26,7 +26,6 @@ export async function connectToDatabase() {
     }
 }
 
-
 // ✅ User Schema
 const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
@@ -38,14 +37,21 @@ const userSchema = new mongoose.Schema({
     resetPasswordExpires: { type: Date, default: null }
 }, { timestamps: true });
 
-// ✅ Product Schema
+// ✅ Product Schema (Updated)
 const productSchema = new mongoose.Schema({
+    _id: { type: String, required: false }, // Explicitly allow custom string _id
     name: { type: String, required: true },
     description: { type: String },
     image: { type: String, default: "/default-product.png" },
     price: { type: Number, required: true },
     stock: { type: Number, required: true, default: 10 },
     category: { type: String },
+    reviews: [{
+        userId: { type: String, required: true },
+        rating: { type: Number, required: true },
+        comment: { type: String, required: true },
+        date: { type: String, required: true }
+    }]
 }, { timestamps: true });
 
 // ✅ Order Schema
